@@ -1,6 +1,10 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 import os
 from argparse import ArgumentParser
 import preprocessing
+import conlluplus
 
 """===========================================================
 Rawtext -> CoNLL-U+ for BabyLemmatizer 2
@@ -24,11 +28,12 @@ def normalize(xlit):
     xlit = preprocessing.subscribe_indices(xlit)
     return xlit
 
+
 def upl_to_conllu(upl_file, output):
-    """ Convert unit-per-line format into CoNLL-U
+    """ Convert unit-per-line format into CoNLL-U (archivo → archivo)
 
     :param upl_file            upl file name
-    :param output              CoNNL-u file name
+    :param output              CoNLL-U file name
 
     Example of the input format (line-by-line):
 
@@ -37,11 +42,10 @@ def upl_to_conllu(upl_file, output):
     in-šu u-hap-pa-du
  
     """
-
     head = {1: '0'}
     deprel = {1: 'root'}
 
-    with open(upl_file, 'r', encoding='utf-8') as f,\
+    with open(upl_file, 'r', encoding='utf-8') as f, \
          open(output, 'w', encoding='utf-8') as o:
 
         for line in f.read().splitlines():
@@ -57,27 +61,24 @@ def upl_to_conllu(upl_file, output):
             o.write('\n')
 
     print(f'> File converted to CoNLL-U+ and saved as {output}')
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
-# ==============================
-#  input list out CoNLL-U+ Text or object
-# ==============================
-import preprocessing
-import conlluplus
 
 
-def txt_lines_to_conllu(lines):
+def txt_lines_to_conllu(lines, output=None):
     """
-    Convert list[str] (unit-per-line) into an in-memory ConlluPlus object.
+    Convert list[str] (unit-per-line) into ConlluPlus object or file.
 
-    lines: list[str]
-        Each string is equivalent to one line in the original .txt input.
-
-    Returns:
-        conlluplus.ConlluPlus
+    :param lines: list[str] - cada string es una línea textual
+    :param output: str (opcional) - si se proporciona, guarda archivo .conllu
+    
+    :return: conlluplus.ConlluPlus object (siempre)
+    
+    Usage:
+        # Como librería (solo objeto en memoria):
+        conllu_obj = txt_lines_to_conllu(["e-nu-ma e-liš", "šap-liš am-ma-tum"])
+        
+        # Como híbrido (objeto + archivo):
+        conllu_obj = txt_lines_to_conllu(lines, output="salida.conllu")
     """
-
     head = {1: '0'}
     deprel = {1: 'root'}
 
@@ -131,17 +132,25 @@ def txt_lines_to_conllu(lines):
     if sentence:
         data.append((comments, sentence))
 
-    # --------------------------------------------------
-    # Create ConlluPlus object WITHOUT reading a file
-    # --------------------------------------------------
+    # Crear ConlluPlus object sin leer archivo
     conllu = conlluplus.ConlluPlus.__new__(conlluplus.ConlluPlus)
     conllu.data = data
     conllu.validate = False
-
-    # word count is used by the lemmatizer
     conllu.word_count = sum(len(sent) for _, sent in data)
 
+    # Si se proporciona output, guardar archivo
+    if output:
+        with open(output, "w", encoding="utf-8") as o:
+            for comments, sentence in data:
+                for comment in comments:
+                    o.write(comment + '\n')
+                for fields in sentence:
+                    o.write('\t'.join(fields) + '\n')
+                o.write('\n')
+        print(f'> File converted to CoNLL-U+ and saved as {output}')
+
     return conllu
+
 
 # ==============================
 #                        MAIN
@@ -158,4 +167,3 @@ if __name__ == "__main__":
         conllu = fn + '.conllu'
 
         upl_to_conllu(txt, conllu)
-        
