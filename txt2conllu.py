@@ -70,11 +70,7 @@ def txt_lines_to_conllu(lines, output):
     """
     head = {1: '0'}
     deprel = {1: 'root'}
-
-    # preprocessing espera líneas tal como vienen del archivo
-    sentences = preprocessing.read_lines(lines)
-    conllu = preprocessing.to_conllu(sentences)
-
+   
     with open(output, "w", encoding="utf-8") as o:
         for line in lines:
             i = 1
