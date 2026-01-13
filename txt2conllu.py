@@ -61,25 +61,87 @@ def upl_to_conllu(upl_file, output):
 # -*- coding: utf-8 -*-
 
 # ==============================
-# NUEVO: función reutilizable
+#  input list out CoNLL-U+ Text or object
 # ==============================
-def txt_lines_to_conllu(lines, output):
+import preprocessing
+import conlluplus
+
+
+def txt_lines_to_conllu(lines):
     """
-    lines: list[str]  → cada string es una línea textual
-    output_filename: str → archivo .conllu de salida
+    Convert list[str] (unit-per-line) into an in-memory ConlluPlus object.
+
+    lines: list[str]
+        Each string is equivalent to one line in the original .txt input.
+
+    Returns:
+        conlluplus.ConlluPlus
     """
+
     head = {1: '0'}
     deprel = {1: 'root'}
-   
-    with open(output, "w", encoding="utf-8") as o:
-        for line in lines:
-            i = 1
-            for word in line.strip().split(' '):
-                hh = head.get(i, '1')
-                rr = deprel.get(i, 'child')
-                o.write(f'{i}\t{normalize(word)}\t_\t_\t_\t_\t{hh}\t{rr}\t_\t_\n')
-                i += 1
-            o.write('\n')
+
+    data = []
+    comments = []
+    sentence = []
+
+    for line in lines:
+        line = line.strip()
+
+        if not line:
+            # sentence boundary
+            if sentence:
+                data.append((comments, sentence))
+                comments = []
+                sentence = []
+            continue
+
+        if line.startswith('#'):
+            comments.append(line)
+            continue
+
+        words = line.split(' ')
+        for i, word in enumerate(words, start=1):
+            hh = head.get(i, '1')
+            rr = deprel.get(i, 'child')
+
+            fields = [
+                str(i),                    # ID
+                normalize(word),           # FORM
+                '_',                       # LEMMA
+                '_',                       # UPOS
+                '_',                       # XPOS
+                '_',                       # FEATS
+                hh,                        # HEAD
+                rr,                        # DEPREL
+                '_',                       # DEPS
+                '_',                       # MISC
+                '_',                       # ENG
+                '_',                       # NORM
+                '_',                       # LANG
+                '_',                       # FORMCTX
+                '_',                       # XPOSCTX
+                '_',                       # SCORE
+                '_'                        # LOCK
+            ]
+
+            sentence.append(fields)
+
+    # flush last sentence if needed
+    if sentence:
+        data.append((comments, sentence))
+
+    # --------------------------------------------------
+    # Create ConlluPlus object WITHOUT reading a file
+    # --------------------------------------------------
+    conllu = conlluplus.ConlluPlus.__new__(conlluplus.ConlluPlus)
+    conllu.data = data
+    conllu.validate = False
+
+    # word count is used by the lemmatizer
+    conllu.word_count = sum(len(sent) for _, sent in data)
+
+    return conllu
 
 # ==============================
 #                        MAIN
