@@ -57,6 +57,37 @@ def upl_to_conllu(upl_file, output):
             o.write('\n')
 
     print(f'> File converted to CoNLL-U+ and saved as {output}')
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# ==============================
+# NUEVO: función reutilizable
+# ==============================
+def txt_lines_to_conllu(lines, output):
+    """
+    lines: list[str]  → cada string es una línea textual
+    output_filename: str → archivo .conllu de salida
+    """
+    head = {1: '0'}
+    deprel = {1: 'root'}
+
+    # preprocessing espera líneas tal como vienen del archivo
+    sentences = preprocessing.read_lines(lines)
+    conllu = preprocessing.to_conllu(sentences)
+
+    with open(output, "w", encoding="utf-8") as o:
+        for line in lines:
+            i = 1
+            for word in line.strip().split(' '):
+                hh = head.get(i, '1')
+                rr = deprel.get(i, 'child')
+                o.write(f'{i}\t{normalize(word)}\t_\t_\t_\t_\t{hh}\t{rr}\t_\t_\n')
+                i += 1
+            o.write('\n')
+
+# ==============================
+#                        MAIN
+# ==============================
 
 if __name__ == "__main__":
     ap = ArgumentParser()
