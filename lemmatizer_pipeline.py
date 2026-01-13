@@ -31,6 +31,27 @@ def io(message):
 class Lemmatizer:
 
     def __init__(self, input_file, fast=False, ignore_numbers=True):
+
+        # --------------------------------------------------
+        # NUEVO: aceptar ConlluPlus directamente (modo librería)
+        # --------------------------------------------------
+        if isinstance(input_file, conlluplus.ConlluPlus):
+            self.source_file = input_file
+            self.input_file = None
+            self.input_path = os.getcwd()
+            self.fast = fast
+            self.ignore_numbers = ignore_numbers
+
+            # valores neutros para compatibilidad
+            self.line_count = 0
+            self.segment_count = 0
+
+            return
+        # --------------------------------------------------
+        # FIN nuevo bloque
+        # --------------------------------------------------
+
+        # ---- flujo ORIGINAL (CLI / archivo) ----
         path, file_ = os.path.split(input_file)
         f, e = file_.split('.')
 
@@ -207,6 +228,7 @@ if __name__ == "__main__":
     #l = Lemmatizer('./input/example.conllu')
     #l.run_model('lbtest1')
     pass
+
 
 
 
