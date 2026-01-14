@@ -2,8 +2,10 @@
 # -*- coding: utf-8 -*-
 
 import os
+import sys
 import shutil
 import tempfile
+import subprocess
 import conlluplus
 import preprocessing as pp
 import model_api
@@ -26,6 +28,48 @@ def io(message):
     print(f'> {message}')
 
 
+def run_opennmt_translate(input_file, model_path, output_file, use_cpu=True, timeout=300):
+    """
+    Ejecuta OpenNMT translate de forma robusta.
+    Intenta primero con model_api original, si falla usa método alternativo.
+    """
+    cmd = [
+        sys.executable, "-m", "onmt.bin.translate",
+        "-model", model_path,
+        "-src", input_file,
+        "-output", output_file,
+        "-replace_unk",
+        "-verbose"
+    ]
+    
+    if use_cpu:
+        cmd.extend(["-gpu", "-1"])
+    
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=timeout
+        )
+        
+        if result.returncode != 0:
+            io(f"OpenNMT error (code {result.returncode}):")
+            if result.stderr:
+                io(f"  stderr: {result.stderr[:500]}")
+            raise RuntimeError(f"OpenNMT failed with code {result.returncode}")
+        
+        if not os.path.isfile(output_file):
+            raise FileNotFoundError(f"OpenNMT did not generate output: {output_file}")
+        
+        return True
+        
+    except subprocess.TimeoutExpired:
+        raise RuntimeError(f"OpenNMT timeout after {timeout} seconds")
+    except Exception as e:
+        raise RuntimeError(f"OpenNMT execution error: {e}")
+
+
 class Lemmatizer:
 
     def __init__(self, input_file, fast=False, ignore_numbers=True, output_file=None):
@@ -42,6 +86,7 @@ class Lemmatizer:
         self.ignore_numbers = ignore_numbers
         self.fast = fast
         self.output_file = output_file
+        self.use_fallback_opennmt = False  # Flag para detectar si model_api falla
         
         # --------------------------------------------------
         # Modo LIBRERÍA: recibe objeto ConlluPlus
@@ -182,12 +227,28 @@ class Lemmatizer:
         lemmatizer_path = os.path.join(
                 Paths.models, model_name, 'lemmatizer', 'model.pt')
 
-        # Run tagger on input
+        # ===================================================================
+        # Run tagger on input (con fallback robusto)
+        # ===================================================================
         io(f'Tagging with {model_name}')
-        model_api.run_tagger(self.tagger_input,
-                             tagger_path,
-                             self.tagger_output,
-                             cpu)
+        
+        try:
+            # Intentar usar model_api original
+            model_api.run_tagger(self.tagger_input,
+                                 tagger_path,
+                                 self.tagger_output,
+                                 cpu)
+            
+            # Verificar que generó el archivo
+            if not os.path.isfile(self.tagger_output):
+                raise FileNotFoundError("model_api.run_tagger did not generate output")
+                
+        except Exception as e:
+            # Si falla, usar método alternativo directo
+            io(f"model_api.run_tagger failed, using direct OpenNMT: {e}")
+            self.use_fallback_opennmt = True
+            run_opennmt_translate(self.tagger_input, tagger_path, 
+                                self.tagger_output, cpu)
 
         # Merge tags to make lemmatizer input
         model_api.merge_tags(self.tagger_output,
@@ -196,12 +257,33 @@ class Lemmatizer:
                              'xpos',
                              'xposctx')
 
-        # Run lemmatizer
+        # ===================================================================
+        # Run lemmatizer (con fallback robusto)
+        # ===================================================================
         io(f'Lemmatizing with {model_name}')
-        model_api.run_lemmatizer(self.lemmatizer_input,
-                                 lemmatizer_path,
-                                 self.lemmatizer_output,
-                                 cpu)
+        
+        try:
+            if not self.use_fallback_opennmt:
+                # Intentar usar model_api original
+                model_api.run_lemmatizer(self.lemmatizer_input,
+                                       lemmatizer_path,
+                                       self.lemmatizer_output,
+                                       cpu)
+                
+                # Verificar que generó el archivo
+                if not os.path.isfile(self.lemmatizer_output):
+                    raise FileNotFoundError("model_api.run_lemmatizer did not generate output")
+            else:
+                # Ya sabemos que model_api falla, usar directo
+                raise RuntimeError("Using fallback")
+                
+        except Exception as e:
+            # Si falla, usar método alternativo directo
+            if not self.use_fallback_opennmt:
+                io(f"model_api.run_lemmatizer failed, using direct OpenNMT: {e}")
+                self.use_fallback_opennmt = True
+            run_opennmt_translate(self.lemmatizer_input, lemmatizer_path,
+                                self.lemmatizer_output, cpu)
 
         # Merge lemmata to CoNLL-U+
         model_api.merge_tags(self.lemmatizer_output,
