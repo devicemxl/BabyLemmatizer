@@ -6,21 +6,33 @@ import sys
   asahala 2023-2024
   github.com/asahala/BabyLemmatizer
 
+  Modified to use portable paths instead of hardcoded ones
+
 =============================================================== """
 
 version_history =\
     "1.0    2022-05-01    TurkuNLP dependent version.\n"\
     "2.0    2023-03-08    Moved to OpenNMT from TurkuNLP.\n"\
     "2.1    2023-09-05    Model versioning --tokenizer.\n"\
-    "2.2    2024-06-07    Adjustable context windows."
+    "2.2    2024-06-07    Adjustable context windows."\
+    "2.3    2026-01-13    not more hard coded paths. "
 
 __version__ = '2.2'
 
-""" Virtual environment path that contains all requirements for OpenNMT """
-python_path = '/projappl/project_2001876/OpenNMT/OpenNMT/bin/'#'/projappl/clarin/onmt/OpenNMT/bin/'
+# ============================================================================
+# PORTABLE PATHS - Ya no se usan rutas hardcodeadas
+# ============================================================================
+# En lugar de rutas hardcodeadas, usamos el Python actual del sistema
+# OpenNMT-py debe estar instalado en el entorno actual:
+#   pip install OpenNMT-py==3.2.0
+#
+# Las funciones en model_api.py ahora usan:
+#   sys.executable -m onmt.bin.translate
+# ============================================================================
 
-""" OpenNMT-Py path, i.e. where the OpenNMT binaries are (translate.py etc.)"""
-onmt_path = '/projappl/project_2001876/OpenNMT/OpenNMT/lib/python3.9/site-packages/onmt/bin/'#'./OpenNMT-py/onmt/bin/'
+# Estas variables se mantienen por compatibilidad pero ya NO se usan
+python_path = ''  # DEPRECATED - ahora se usa sys.executable
+onmt_path = ''    # DEPRECATED - ahora se usa -m onmt.bin.translate
 
 
 class Paths:
@@ -88,5 +100,16 @@ class Tokenizer:
 
     
 if __name__ == "__main__":
-    os.system(f'{python_path}python {onmt_path}train.py -h')
-
+    # Versión portable del test
+    import subprocess
+    try:
+        result = subprocess.run(
+            [sys.executable, "-m", "onmt.bin.train", "-h"],
+            capture_output=True,
+            text=True
+        )
+        print(result.stdout)
+    except Exception as e:
+        print(f"Error testing OpenNMT: {e}")
+        print("\nMake sure OpenNMT-py is installed:")
+        print("  pip install OpenNMT-py==3.2.0")
