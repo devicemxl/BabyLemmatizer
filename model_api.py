@@ -1,11 +1,14 @@
 import os
-from preferences import python_path, onmt_path, Context
-#import conllutools as ct
+import sys
+import subprocess
+from preferences import Context
 import preprocessing as PP
 
 """ ===========================================================
 API for calling OpenNMT and performing intermediate steps for
 BabyLemmatizer 2
+
+Modified to use portable OpenNMT paths instead of hardcoded ones
 
 asahala 2023
 https://github.com/asahala
@@ -15,34 +18,100 @@ University of Helsinki
    Centre of Excellence for Ancient Near-Eastern Empires
 
 =========================================================== """
-    
-def run_tagger(input_file, model_name, output_file, cpu=False):
-    gpu = ''
-    if not cpu:
-        gpu = '-gpu 0'
 
-    command = f"{python_path}python {onmt_path}translate.py -model"\
-        f" {model_name} -src {input_file} -output {output_file} {gpu} "\
-        "-min_length 1"
-    os.system(command)
+
+def run_tagger(input_file, model_name, output_file, cpu=False):
+    """
+    Run OpenNMT tagger using portable Python paths
+    
+    :param input_file: source file path
+    :param model_name: model path
+    :param output_file: output file path
+    :param cpu: use CPU instead of GPU
+    """
+    
+    # Construcción portable del comando
+    cmd = [
+        sys.executable,  # Python actual del sistema
+        "-m", "onmt.bin.translate",
+        "-model", model_name,
+        "-src", input_file,
+        "-output", output_file,
+        "-min_length", "1"
+    ]
+    
+    if cpu:
+        cmd.extend(["-gpu", "-1"])
+    else:
+        cmd.extend(["-gpu", "0"])
+    
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            check=False
+        )
+        
+        # Solo mostrar errores si falló
+        if result.returncode != 0:
+            print(f"Tagger warning/error (code {result.returncode}):")
+            if result.stderr:
+                print(result.stderr[:500])
+                
+    except Exception as e:
+        print(f"Error running tagger: {e}")
+        raise
 
 
 def run_lemmatizer(input_file, model_name, output_file, cpu=False):
-    gpu = ''
-    if not cpu:
-        gpu = '-gpu 0'
+    """
+    Run OpenNMT lemmatizer using portable Python paths
+    
+    :param input_file: source file path
+    :param model_name: model path
+    :param output_file: output file path
+    :param cpu: use CPU instead of GPU
+    """
+    
+    # Construcción portable del comando
+    cmd = [
+        sys.executable,  # Python actual del sistema
+        "-m", "onmt.bin.translate",
+        "-model", model_name,
+        "-src", input_file,
+        "-output", output_file,
+        "-min_length", "1"
+    ]
+    
+    if cpu:
+        cmd.extend(["-gpu", "-1"])
+    else:
+        cmd.extend(["-gpu", "0"])
+    
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            check=False
+        )
         
-    command = f"{python_path}python {onmt_path}translate.py -model"\
-              f" {model_name} -src {input_file} "\
-              f"-output {output_file} {gpu} -min_length 1"
-    os.system(command)
+        # Solo mostrar errores si falló
+        if result.returncode != 0:
+            print(f"Lemmatizer warning/error (code {result.returncode}):")
+            if result.stderr:
+                print(result.stderr[:500])
+                
+    except Exception as e:
+        print(f"Error running lemmatizer: {e}")
+        raise
 
 
 def read_results(filename):
     """ Read OpenNMT output file """
     with open(filename, 'r', encoding='utf-8') as f:
         for line in f:
-            
             yield line.replace(' ', '').rstrip()
 
 
@@ -56,7 +125,7 @@ def merge_tags(neural_net_output, conllu_object, output_file, field, fieldctx):
     :param field                 Which field to populate with the output
     :param fieldctx              Which context field to update
 
-    :type neural_net_outpu       path/file as str
+    :type neural_net_output      path/file as str
     :type conllu_object          ConlluPlus obj
     :type output_file            path/file as str or None
     :type field                  str
@@ -114,23 +183,6 @@ def ___merge_tags(tagged_file, lemma_input, output_file):
                 o_file.write(f'{lemma} {pos}\n')
 
 
-#def ___merge_to_final(tags, lemmas, output):
-#    """ Merges tags and lemmata into a single output """
-#    with open(tags, 'r', encoding='utf-8') as t_file,\
-#         open(lemmas, 'r', encoding='utf-8') as l_file,\
-#         open(output, 'w', encoding='utf-8') as o_file:
-#
-#        combined = zip(l_file.read().splitlines(),
-#                       t_file.read().splitlines())
-#
-#        for lemma, pos in combined:
-#            lemma = ''.join(lemma.split(' '))
-#            o_file.write(f'{lemma}\t{pos}\n')
-#
-#        o_file.write('\n')
-
-
 def file_to_set(filename):
     with open(filename, 'r', encoding='utf-8') as f:
         return set(x.split('\t')[0] for x in f.read().splitlines())
-    
